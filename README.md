@@ -1,5 +1,4 @@
 # PyTorch Lightning Template for Semantic Segmentation
----
 
 ## Requirements
 ---
@@ -13,7 +12,7 @@
 - opencv-python
 
 ## Folder Structure
----
+
 ```
       │
       ├── data/ - abstract base classes
@@ -35,8 +34,7 @@
 ```
 
 ## Usage
----
-There are Basic features of `Trainer` of pytorch lightning
+There are Basic features of `Trainer` of pytorch lightning  
 Some features what i fequently used are made arguments `args`
 
 ### Using Multiple GPU
@@ -53,7 +51,7 @@ If you want to other precisions, you just add argument `--precision`
 ```
 
 ### Data Augmnetation
-Data Augmnetation is basically implemented by `Albumentations`
+Data Augmnetation is basically implemented by `Albumentations`  
 If you want to add others, append Augumentation in `transforms.py`
 
 ```
@@ -87,7 +85,6 @@ When you use reducelr, essentialy implement `monitor`.
 ```
 
 ## TODOs
----
 - [ ] Implement resume training
 - [ ] test.py implement
 - [ ] add feature TTA
