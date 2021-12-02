@@ -1,7 +1,7 @@
 # PyTorch Lightning Template for Semantic Segmentation
+- Getting start for the Semantic Segmentation Competition quickly
 
 ## Requirements
----
 - Python >= 3.7 (3.8 recommended)
 - Pytorch >= 1.7 (conda install pytorch==1.7.1 torchvision==0.8.2 torchaudio==0.7.2 cudatoolkit=10.1 -c pytorch)
 - pytorch_lightning
