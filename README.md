@@ -35,7 +35,7 @@
 
 ## Usage
 There are Basic features of `Trainer` of pytorch lightning  
-Some features what i fequently used are made arguments `args`
+Some features what i frequently used are made arguments `args`
 
 ### Using Multiple GPU
 If you want to train multi-GPU machine, you just add argument `--gpus`
@@ -51,8 +51,8 @@ If you want to other precisions, you just add argument `--precision`
 ```
 
 ### Data Augmnetation
-Data Augmnetation is basically implemented by `Albumentations`  
-If you want to add others, append Augumentation in `transforms.py`
+Data Augmentation is basically implemented by `Albumentations`  
+If you want to add others, append Augmentation in `transforms.py`
 
 ```
     train_transform = []
@@ -64,7 +64,7 @@ If you want to add others, append Augumentation in `transforms.py`
 ### Optimizer & Scheduler
 I implemented 3 optimizers [`adam`, `adamw`, `adamp`] and 2 schedulers [`cosine annealing`, `reducelr`]
 if you want to use other optimizer & scheduler, edit `configure_optimizers` function in `models.py`
-When you use reducelr, essentialy implement `monitor`. 
+When you use reducelr, essentially implement `monitor`. 
 
 ```
     def configure_optimizers(self):
