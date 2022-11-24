@@ -63,6 +63,8 @@ if __name__ == '__main__':
 
     test_images = np.array(sorted(glob.glob(os.path.join(args.test_data_dir, 'images', '*'))))
     test_masks = np.array(sorted(glob.glob(os.path.join(args.test_data_dir, 'masks', '*'))))
+    
+    model = SegmentationModel(args)
 
     kf = KFold(n_splits=args.kfold)
     for idx, (train_index, val_index) in enumerate(kf.split(X=train_images)):
@@ -79,18 +81,18 @@ if __name__ == '__main__':
                                             mode="min")
 
         train_transform, val_transform = make_transform(args)
-        model = PlSegmentationModel(args)
+        
 
-        train_ds = SegmentationLv1Dataset(train_images[train_index], train_masks[train_index], train_transform)
+        train_ds = SegmentationDataset(train_images[train_index], train_masks[train_index], train_transform)
         train_dataloader = torch.utils.data.DataLoader(train_ds, batch_size=args.batch_size,
                                                        num_workers=args.num_workers, shuffle=True,
                                                        drop_last=True)
 
-        val_ds = SegmentationLv1Dataset(train_images[val_index], train_masks[val_index], train_transform)
+        val_ds = SegmentationDataset(train_images[val_index], train_masks[val_index], train_transform)
         val_dataloader = torch.utils.data.DataLoader(val_ds, batch_size=args.batch_size,
                                                      num_workers=args.num_workers)
 
-        test_ds = SegmentationLv1Dataset(test_images, test_masks, val_transform)
+        test_ds = SegmentationDataset(test_images, test_masks, val_transform)
         test_dataloader = torch.utils.data.DataLoader(test_ds, batch_size=1,
                                                       num_workers=args.num_workers)
 
