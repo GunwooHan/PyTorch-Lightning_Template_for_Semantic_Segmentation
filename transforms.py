@@ -1,18 +1,32 @@
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
+from sklearn.model_selection import train_test_split
 
 
 def make_transform(args):
     base_transform = [
-        # A.Resize(args.img_size, args.img_size),
+        A.Resize(args.img_size, args.img_size),
         A.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225],
+            mean=[0.625, 0.448, 0.688],     
+            std=[0.131, 0.177, 0.101],
         ),
         ToTensorV2()
     ]
 
     train_transform = []
+    if args.buildingSegTransform:
+        train_transform = [
+            A.HorizontalFlip(p=0.5),
+            A.VerticalFlip(p=0.5),
+            A.RandomRotate90(),
+            A.OneOf([
+                A.RandomBrightness(),
+                A.RandomGamma(),
+                A.RandomContrast(),
+                A.ColorJitter(brightness=0.07, contrast=0.07,
+                              saturation=0.1, hue=0.1, always_apply=False, p=0.5),
+            ], p=0.4),
+        ]
 
     # if args.Blur:
     #     train_transform.append(
@@ -48,22 +62,22 @@ def make_transform(args):
     #     train_transform.append(A.RandomGamma(gamma_limit=(80, 120),
     #                                          p=args.RandomGamma
     #                                          ))
-    if args.HorizontalFlip:
-        train_transform.append(A.HorizontalFlip(p=args.ShiftScaleRotate))
+    # if args.HorizontalFlip:
+    #     train_transform.append(A.HorizontalFlip(p=args.ShiftScaleRotate))
 
-    if args.VerticalFlip:
-        train_transform.append(A.VerticalFlip(p=args.ShiftScaleRotate))
+    # if args.VerticalFlip:
+    #     train_transform.append(A.VerticalFlip(p=args.ShiftScaleRotate))
 
-    # if args.RandomCrop:
-    train_transform.append(A.RandomCrop(args.crop_image_size, args.crop_image_size))
-    #
-    if args.ShiftScaleRotate:
-        train_transform.append(A.ShiftScaleRotate(shift_limit=0.2,
-                                                  scale_limit=0.2,
-                                                  rotate_limit=10,
-                                                  border_mode=args.ShiftScaleRotateMode,
-                                                  p=args.ShiftScaleRotate
-                                                  ))
+    # # if args.RandomCrop:
+    # # train_transform.append(A.RandomCrop(args.crop_image_size, args.crop_image_size))
+    # #
+    # if args.ShiftScaleRotate:
+    #     train_transform.append(A.ShiftScaleRotate(shift_limit=0.2,
+    #                                               scale_limit=0.2,
+    #                                               rotate_limit=10,
+    #                                               border_mode=args.ShiftScaleRotateMode,
+    #                                               p=args.ShiftScaleRotate
+    #                                               ))
     # if args.GridDistortion:
     #     train_transform.append(A.GridDistortion(num_steps=5,
     #                                             distort_limit=(-0.3, 0.3),

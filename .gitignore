@@ -1,2 +1,9 @@
-.idea
 data
+trains/**/__pycache__
+trains/**/predict_result
+trains/**/wandb
+trains/**/checkpoints
+.vscode
+**/TianChiDataset
+**/__pycache__
+**/*.zip

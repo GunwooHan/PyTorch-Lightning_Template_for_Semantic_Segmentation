@@ -1,22 +1,22 @@
 import pytorch_lightning as pl
-import segmentation_models_pytorch as smp
 import torch
 import torch.nn as nn
 import torch.optim.lr_scheduler as lr_scheduler
 from adamp import AdamP
 from torchmetrics.functional import jaccard_index
+import segmentation_models_pytorch as smp
+
+""" Parts of the U-Net model """
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 
-
-class SegmentationModel(pl.LightningModule):
+class Deeplabv3pModel(pl.LightningModule):
     def __init__(self, args=None):
         super().__init__()
-        self.model = smp.__dict__[args.model](
-            encoder_name=args.encoder,  # choose encoder, e.g. mobilenet_v2 or efficientnet-b7
-            encoder_weights="imagenet",  # use `imagenet` pre-trained weights for encoder initialization
-            in_channels=3,  # model input channels (1 for gray-scale images, 3 for RGB, etc.)
-            classes=2,  # model output channels (number of classes in your dataset)
-        )
+        self.model = smp.DeepLabV3Plus(encoder_name='resnet101', in_channels=3, classes=2)
         self.args = args
         self.criterion = nn.CrossEntropyLoss()
 
@@ -81,7 +81,5 @@ class SegmentationModel(pl.LightningModule):
         self.log('test/loss', loss, on_epoch=True, on_step=False, prog_bar=True, sync_dist=True)
         self.log('test/jaccard_index_value', jaccard_index_value, on_epoch=True, on_step=False, prog_bar=True,
                  sync_dist=True)
-
-        return {"loss": loss, "jaccard_index_value": jaccard_index_value}
 
         return {"loss": loss, "jaccard_index_value": jaccard_index_value}
