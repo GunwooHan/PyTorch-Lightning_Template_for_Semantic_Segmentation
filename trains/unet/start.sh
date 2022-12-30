@@ -1,0 +1,1 @@
+python train.py --gpus=3 --train_data_dir ~/codes/datasets/buildingSegDataset/train --name unet --model UNet --precision 16 --buildingSegTransform True
