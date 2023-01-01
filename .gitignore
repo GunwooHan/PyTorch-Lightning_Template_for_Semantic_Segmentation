@@ -7,3 +7,4 @@ trains/**/checkpoints
 **/TianChiDataset
 **/__pycache__
 **/*.zip
+**/TianChiBuilding
