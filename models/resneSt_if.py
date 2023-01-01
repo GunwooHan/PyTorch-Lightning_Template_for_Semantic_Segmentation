@@ -1,10 +1,11 @@
+from base64 import encode
 from pyrsistent import m
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.optim.lr_scheduler as lr_scheduler
 from adamp import AdamP
-from torchmetrics.functional import jaccard_index, dice_score, f1_score, precision, recall, accuracy
+from torchmetrics.functional import jaccard_index, f1_score, precision, recall, accuracy
 import segmentation_models_pytorch as smp
 
 import os
@@ -64,10 +65,10 @@ def mask_onehot(masks):
 
 
 class ResNeSt200eUnetPPModel(pl.LightningModule):
-    def __init__(self, args=None):
+    def __init__(self, args=None, encoder='timm-resnest200e'):
         super().__init__()
         # 取消预训练
-        self.model = smp.UnetPlusPlus(encoder_name='timm-resnest200e', encoder_weights='imagenet', in_channels=3, classes=1)
+        self.model = smp.UnetPlusPlus(encoder_name=encoder, encoder_weights='imagenet', in_channels=3, classes=1)
         self.args = args
         self.criterion = loss_fn
 
