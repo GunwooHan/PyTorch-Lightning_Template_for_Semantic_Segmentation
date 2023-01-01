@@ -35,6 +35,7 @@ def init_args():
     parser.add_argument('--model_name', type=str, default=f'{cfg.N_NAME}')
     parser.add_argument('--buildingSegTransform', type=bool, default=True)
     parser.add_argument('--predict_result_dir', type=str, default='')
+    parser.add_argument('--img_size', type=int, default=512)
     # precision
     parser.add_argument('--precision', type=int, default=16)
     return parser.parse_args()
