@@ -110,7 +110,7 @@ if __name__ == '__main__':
                             #  amp_backend="apex",
                             #  auto_lr_find=True,
                             #  auto_scale_batch_size="binsearch",
-                            #  strategy="ddp_find_unused_parameters_false",
+                             strategy="ddp_find_unused_parameters_false",
                             #  strategy="cuda",
                              # num_sanity_val_steps=0,
                              # limit_train_batches=5,

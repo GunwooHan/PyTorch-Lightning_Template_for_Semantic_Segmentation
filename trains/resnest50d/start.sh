@@ -1,5 +1,5 @@
-python train.py --gpus=1 \
- --train_data_dir ~/codes/datasets/TianChiBuilding/train \
+python train.py --gpus=3 \
+ --train_data_dir ~/codes/datasets/buildingSegDataset/train \
  --name resnest50dupp \
  --model ResNeSt50dUnetPP \
  --precision 16 \
@@ -8,5 +8,5 @@ python train.py --gpus=1 \
  --epochs 24 \
  --learning_rate 0.0001 \
  --optimizer adamp \
-#  --img_size 480
+ --img_size 480
 
