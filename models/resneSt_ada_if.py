@@ -7,6 +7,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 from adamp import AdamP
 from torchmetrics.functional import jaccard_index, f1_score, precision, recall, accuracy
 import segmentation_models_pytorch as smp
+from . import resneSt_ada
 
 import os
 import sys
@@ -64,8 +65,8 @@ def mask_onehot(masks):
     
 
 
-class ResNeSt200eUnetPPModel(pl.LightningModule):
-    def __init__(self, args=None, encoder='timm-resnest50d'):
+class ResNeStAdaUnetPPModel(pl.LightningModule):
+    def __init__(self, args=None, encoder='timm-resnest50d-ada'):
         super().__init__()
         # 取消预训练
         self.model = smp.UnetPlusPlus(encoder_name=encoder, encoder_weights='imagenet', in_channels=3, classes=1)

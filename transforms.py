@@ -4,7 +4,10 @@ from sklearn.model_selection import train_test_split
 
 
 def make_transform(args):
+    if not hasattr(args, 'img_size'):
+        args.img_size = 512
     base_transform = [
+        # args.img_size 是否存在
         A.Resize(args.img_size, args.img_size),
         A.Normalize(
             mean=[0.625, 0.448, 0.688],     
