@@ -21,7 +21,7 @@ import torch.nn as nn
 import torch
 import segmentation_models_pytorch as smp
 
-
+resneSt_ada.init_resnest_ada_to_smp()
 
 class SoftDiceLoss(nn.Module):
     def __init__(self, smooth=1., dims=(-2,-1)):
@@ -69,7 +69,7 @@ class ResNeStAdaUnetPPModel(pl.LightningModule):
     def __init__(self, args=None, encoder='timm-resnest50d-ada'):
         super().__init__()
         # 取消预训练
-        self.model = smp.UnetPlusPlus(encoder_name=encoder, encoder_weights='imagenet', in_channels=3, classes=1)
+        self.model = smp.UnetPlusPlus(encoder_name=encoder, encoder_weights=None, in_channels=3, classes=1)
         self.args = args
         self.criterion = loss_fn
 

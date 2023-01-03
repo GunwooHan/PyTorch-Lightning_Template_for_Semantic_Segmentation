@@ -66,7 +66,29 @@ class ResNestEncoderAdaPool(ResNet, EncoderMixin):
     def load_state_dict(self, state_dict, **kwargs):
         state_dict.pop("fc.bias", None)
         state_dict.pop("fc.weight", None)
-        super().load_state_dict(state_dict, **kwargs)
+        super().load_state_dict(state_dict, strict=False, **kwargs)
+        # Replace AvgPool2d with MaxPool2d
+        self.rep_pool33 = AdaPool2d(kernel_size=2, stride=2, beta=(1, 1))
+        self.rep_pool22 = AdaPool2d(kernel_size=2, stride=2, beta=(1, 1))
+
+        if self.maxpool is not None:
+            setattr(self, 'maxpool', self.rep_pool33)
+
+        for layer_i in range(4):
+            r_i = layer_i + 1
+            for i in range(len(getattr(self, f'layer{r_i}'))):
+                # print(self.layer2[i])
+                if hasattr(eval(f'self.layer{r_i}[i]'), 'avd_last'):
+                    if eval(f'self.layer{r_i}[i]').avd_last is not None:
+                        eval(f'self.layer{r_i}[i]').avd_last = self.rep_pool33
+                if hasattr(eval(f'self.layer{r_i}[i]'), 'downsample'):
+                    if eval(f'self.layer{r_i}[i]').downsample is not None:
+                        print(eval(f'self.layer{r_i}[i]').downsample[0])
+                        if not isinstance(eval(f'self.layer{r_i}[i]').downsample[0], nn.Identity):
+                            eval(f'self.layer{r_i}[i]').downsample[0] = self.rep_pool22
+
+        del self.rep_pool33
+        del self.rep_pool22
 
 resnest_weights = {
     "timm-resnest14d": {
