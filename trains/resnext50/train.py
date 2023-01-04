@@ -68,7 +68,7 @@ if __name__ == '__main__':
     # train_images, val_images, train_masks, val_masks = train_test_split(all_imgs, all_masks, test_size=0.2, random_state=args.seed)
     # print(f'train_images: {len(train_images)}, val_images: {len(val_images)}')
     
-    model = cfg.MODEL_INTERFACE(args, encoder='timm-resnest50d')
+    model = cfg.MODEL_INTERFACE(args, encoder='resnext50_32x4d')
     # model.apply(kaiming_init)
         
     kf = KFold(n_splits=args.kfold)
@@ -103,11 +103,12 @@ if __name__ == '__main__':
         #                                               num_workers=args.num_workers)
         from pytorch_lightning.strategies.ddp import DDPStrategy
         trainer = pl.Trainer(accelerator='gpu',
-                             devices=-1,
+                            #  devices=1,
+                             gpus=[0],
                              precision=args.precision,
                              max_epochs=args.epochs,
                              log_every_n_steps=50,
-                             amp_backend="native",
+                            #  amp_backend="apex",
                             #  auto_lr_find=True,
                             #  auto_scale_batch_size="binsearch",
                             #  strategy="ddp_find_unused_parameters_false",
@@ -118,7 +119,7 @@ if __name__ == '__main__':
                              logger=wandb_logger,
                              callbacks=[checkpoint_callback, early_stop_callback]
                              )
-        # trainer.tune(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
+        # trainer.tune(model)
         trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
         # trainer.test(dataloaders=test_dataloader)
         wandb.finish()
