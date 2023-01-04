@@ -107,7 +107,7 @@ if __name__ == '__main__':
                              precision=args.precision,
                              max_epochs=args.epochs,
                              log_every_n_steps=50,
-                             amp_backend="native",
+                            #  amp_backend="apex",
                             #  auto_lr_find=True,
                             #  auto_scale_batch_size="binsearch",
                              strategy="ddp_find_unused_parameters_false",
@@ -118,7 +118,7 @@ if __name__ == '__main__':
                              logger=wandb_logger,
                              callbacks=[checkpoint_callback, early_stop_callback]
                              )
-        # trainer.tune(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
+        # trainer.tune(model)
         trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
         # trainer.test(dataloaders=test_dataloader)
         wandb.finish()

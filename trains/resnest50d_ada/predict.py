@@ -27,6 +27,8 @@ import ttach as tta
 # import autocast
 from torch.cuda.amp import autocast
 
+print(cfg.MODEL_INTERFACE())
+
 def init_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--pred_img_dir', type=str, default='/home/aieson/codes/datasets/buildingSegDataset/preds/pred_img')
@@ -49,8 +51,16 @@ def make_dir(path):
         
 
 def main(args):
-    cfg.MODEL_INTERFACE
-    model = cfg.MODEL_INTERFACE.load_from_checkpoint(args.model_file, strict=False).to('cuda')
+    model = cfg.MODEL_INTERFACE()
+    # model.load_from_checkpoint(args.model_file)
+    
+    # model = cfg.MODEL_INTERFACE.load_from_checkpoint(args.model_file)
+    # model_pth = torch.load('/home/aieson/codes/PyTorch-Lightning_Template_for_Semantic_Segmentation/trains/resnest50d_ada/checkpoints/resnest50d_adaupp_fold05_val/jac_idx=0.9049-v1.ckpt')
+    # missing_keys = ["model.encoder.maxpool.beta", "model.encoder.layer2.0.avd_last.beta", "model.encoder.layer2.0.downsample.0.beta", "model.encoder.layer3.0.avd_last.beta", "model.encoder.layer3.0.downsample.0.beta", "model.encoder.layer4.0.avd_last.beta", "model.encoder.layer4.0.downsample.0.beta"]
+    # for m_key in missing_keys:
+    #     model_pth['state_dict'][m_key] = (1,1)
+        
+    model = cfg.MODEL_INTERFACE.load_from_checkpoint(args.model_file).to('cuda')
     # tta
     model = tta.SegmentationTTAWrapper(model, tta.aliases.d4_transform(), merge_mode='mean')
     model.eval()
