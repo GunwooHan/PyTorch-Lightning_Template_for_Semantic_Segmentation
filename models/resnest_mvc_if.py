@@ -7,6 +7,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 from adamp import AdamP
 from torchmetrics.functional import jaccard_index, f1_score, precision, recall, accuracy
 import segmentation_models_pytorch as smp
+from . import resnest_mvc
 
 import os
 import sys
@@ -20,7 +21,7 @@ import torch.nn as nn
 import torch
 import segmentation_models_pytorch as smp
 
-
+resnest_mvc.init_resnest_mvc_to_smp()
 
 class SoftDiceLoss(nn.Module):
     def __init__(self, smooth=1., dims=(-2,-1)):
@@ -64,11 +65,11 @@ def mask_onehot(masks):
     
 
 
-class ResNeSt200eUnetPPModel(pl.LightningModule):
-    def __init__(self, args=None, encoder='timm-resnest26d'):
+class ResNeStMVCUnetPPModel(pl.LightningModule):
+    def __init__(self, args=None, encoder='timm-resnest26d-mvc'):
         super().__init__()
         # 取消预训练
-        self.model = smp.UnetPlusPlus(encoder_name=encoder, encoder_weights='imagenet', in_channels=3, classes=1)
+        self.model = smp.UnetPlusPlus(encoder_name=encoder, encoder_weights=None, in_channels=3, classes=1)
         self.args = args
         self.criterion = loss_fn
 
@@ -85,7 +86,7 @@ class ResNeSt200eUnetPPModel(pl.LightningModule):
             optimizer = AdamP(self.parameters(), lr=self.args.learning_rate, betas=(0.9, 0.999), weight_decay=1e-2)
 
         if self.args.scheduler == "reducelr":
-            scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, factor=0.5, mode="max", verbose=True)
+            scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=7, factor=0.5, mode="max", verbose=True)
             return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val/jac_idx"}
 
         elif self.args.scheduler == "cosineanneal":
