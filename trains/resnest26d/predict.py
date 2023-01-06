@@ -49,7 +49,6 @@ def make_dir(path):
         
 
 def main(args):
-    cfg.MODEL_INTERFACE
     model = cfg.MODEL_INTERFACE.load_from_checkpoint(args.model_file, strict=False).to('cuda')
     # tta
     model = tta.SegmentationTTAWrapper(model, tta.aliases.d4_transform(), merge_mode='mean')
