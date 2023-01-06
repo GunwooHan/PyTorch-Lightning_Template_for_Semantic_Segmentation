@@ -1,6 +1,8 @@
 import os
 import sys
 import inspect
+
+from regex import D
 sys.path.append(os.path.realpath(os.path.join(os.path.dirname(inspect.getfile(inspect.currentframe())), '../../')))
 sys.path.append(os.path.realpath(os.path.join(os.path.dirname(inspect.getfile(inspect.currentframe())), './')))
 import glob
@@ -56,8 +58,6 @@ parser.add_argument('--gpus', type=int, default=1)
 parser.add_argument('--buildingSegTransform', type=bool, default=True)
 args = parser.parse_args()
 
-
-
 if __name__ == '__main__':
     pl.seed_everything(args.seed)
     all_imgs = glob.glob(os.path.join(args.train_data_dir, '*.jpg'))
@@ -68,7 +68,7 @@ if __name__ == '__main__':
     # train_images, val_images, train_masks, val_masks = train_test_split(all_imgs, all_masks, test_size=0.2, random_state=args.seed)
     # print(f'train_images: {len(train_images)}, val_images: {len(val_images)}')
     
-    model = cfg.MODEL_INTERFACE(args, encoder='timm-resnest50d')
+    model = cfg.MODEL_INTERFACE(args, encoder='timm-resnest26d-addgsop')
     # model.apply(kaiming_init)
         
     kf = KFold(n_splits=args.kfold)
@@ -111,6 +111,7 @@ if __name__ == '__main__':
                             #  auto_lr_find=True,
                             #  auto_scale_batch_size="binsearch",
                              strategy="ddp_find_unused_parameters_false",
+                            #  strategy = DDPStrategy(find_unused_parameters=True, broadcast_buffers=False),
                             #  strategy="cuda",
                              # num_sanity_val_steps=0,
                              # limit_train_batches=5,
@@ -118,6 +119,8 @@ if __name__ == '__main__':
                              logger=wandb_logger,
                              callbacks=[checkpoint_callback, early_stop_callback]
                              )
+        
+        # set broadcast_buffers=True
         # trainer.tune(model)
         trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
         # trainer.test(dataloaders=test_dataloader)
