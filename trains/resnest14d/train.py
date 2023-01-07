@@ -104,7 +104,7 @@ if __name__ == '__main__':
         from pytorch_lightning.strategies.ddp import DDPStrategy
         trainer = pl.Trainer(accelerator='gpu',
                             #  devices=1,
-                             gpus=[0],
+                             gpus=[0, 1],
                              precision=args.precision,
                              max_epochs=args.epochs,
                              log_every_n_steps=50,

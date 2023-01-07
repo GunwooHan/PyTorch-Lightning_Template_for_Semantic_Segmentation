@@ -6,6 +6,17 @@ Adapted from original PyTorch impl w/ weights at https://github.com/zhanghang198
 
 Modified for torchscript compat, and consistency with timm by Ross Wightman
 """
+from losses import FocalLoss
+import inspect
+import sys
+import os
+from torchmetrics.functional import jaccard_index, f1_score, precision, recall, accuracy
+from adamp import AdamP
+import torch.optim.lr_scheduler as lr_scheduler
+import pytorch_lightning as pl
+from pyrsistent import m
+from base64 import encode
+from timm.models.layers import make_divisible
 import math
 
 import torch
@@ -29,11 +40,6 @@ Adapted from original PyTorch impl at https://github.com/zhanghang1989/ResNeSt
 
 Modified for torchscript compat, performance, and consistency with timm by Ross Wightman
 """
-import torch
-import torch.nn.functional as F
-from torch import nn
-
-from timm.models.layers import make_divisible
 
 
 class RadixSoftmax(nn.Module):
@@ -56,6 +62,7 @@ class RadixSoftmax(nn.Module):
 class SplitAttn(nn.Module):
     """Split-Attention (aka Splat)
     """
+
     def __init__(self, in_channels, out_channels=None, kernel_size=3, stride=1, padding=None,
                  dilation=1, groups=1, bias=False, radix=2, rd_ratio=0.25, rd_channels=None, rd_divisor=8,
                  act_layer=nn.ReLU, norm_layer=None, drop_layer=None, **kwargs):
@@ -64,7 +71,8 @@ class SplitAttn(nn.Module):
         self.radix = radix
         mid_chs = out_channels * radix
         if rd_channels is None:
-            attn_chs = make_divisible(in_channels * radix * rd_ratio, min_value=32, divisor=rd_divisor)
+            attn_chs = make_divisible(
+                in_channels * radix * rd_ratio, min_value=32, divisor=rd_divisor)
         else:
             attn_chs = rd_channels * radix
 
@@ -101,7 +109,8 @@ class SplitAttn(nn.Module):
 
         x_attn = self.rsoftmax(x_attn).view(B, -1, 1, 1)
         if self.radix > 1:
-            out = (x * x_attn.reshape((B, self.radix, RC // self.radix, 1, 1))).sum(dim=1)
+            out = (x * x_attn.reshape((B, self.radix,
+                   RC // self.radix, 1, 1))).sum(dim=1)
         else:
             out = x * x_attn
         return out.contiguous()
@@ -150,7 +159,8 @@ def cov_feature(x):
     w = x.data.shape[3]
     M = h * w
     x = x.reshape(batchsize, dim, M)
-    I_hat = (-1. / M / M) * torch.ones(dim, dim, device=x.device) + (1. / M) * torch.eye(dim, dim, device=x.device)
+    I_hat = (-1. / M / M) * torch.ones(dim, dim, device=x.device) + \
+        (1. / M) * torch.eye(dim, dim, device=x.device)
     I_hat = I_hat.view(1, dim, dim).repeat(batchsize, 1, 1).type(x.dtype)
     y = (x.transpose(1, 2)).bmm(I_hat).bmm(x)
     return y
@@ -166,7 +176,7 @@ class ResNestBottleneck(nn.Module):
             self, inplanes, planes, stride=1, downsample=None,
             radix=1, cardinality=1, base_width=64, avd=False, avd_first=False, is_first=False,
             reduce_first=1, dilation=1, first_dilation=None, act_layer=nn.ReLU, norm_layer=nn.BatchNorm2d,
-            attn_layer=None, aa_layer=None, drop_block=None, drop_path=None, attention='2', att_dim=128):
+            attn_layer=None, aa_layer=None, drop_block=None, drop_path=None, attention='+', att_dim=128):
         super(ResNestBottleneck, self).__init__()
         assert reduce_first == 1  # not supported
         assert attn_layer is None  # not supported
@@ -182,10 +192,12 @@ class ResNestBottleneck(nn.Module):
             avd_stride = 0
         self.radix = radix
 
-        self.conv1 = nn.Conv2d(inplanes, group_width, kernel_size=1, bias=False)
+        self.conv1 = nn.Conv2d(inplanes, group_width,
+                               kernel_size=1, bias=False)
         self.bn1 = norm_layer(group_width)
         self.act1 = act_layer(inplace=False)
-        self.avd_first = nn.AvgPool2d(3, avd_stride, padding=1) if avd_stride > 0 and avd_first else None
+        self.avd_first = nn.AvgPool2d(
+            3, avd_stride, padding=1) if avd_stride > 0 and avd_first else None
 
         if self.radix >= 1:
             self.conv2 = SplitAttn(
@@ -201,9 +213,11 @@ class ResNestBottleneck(nn.Module):
             self.bn2 = norm_layer(group_width)
             self.drop_block = drop_block() if drop_block is not None else nn.Identity()
             self.act2 = act_layer(inplace=False)
-        self.avd_last = nn.AvgPool2d(3, avd_stride, padding=1) if avd_stride > 0 and not avd_first else None
+        self.avd_last = nn.AvgPool2d(
+            3, avd_stride, padding=1) if avd_stride > 0 and not avd_first else None
 
-        self.conv3 = nn.Conv2d(group_width, planes * 4, kernel_size=1, bias=False)
+        self.conv3 = nn.Conv2d(group_width, planes * 4,
+                               kernel_size=1, bias=False)
         self.bn3 = norm_layer(planes * 4)
         self.act3 = act_layer(inplace=False)
 
@@ -260,12 +274,14 @@ class ResNestBottleneck(nn.Module):
             self.conv_kernel_size = self.factor * 2 + 5
             self.dilate_conv_for_concat1 = nn.Conv2d(planes * self.expansion,
                                                      planes * self.expansion,
-                                                     kernel_size=(self.conv_kernel_size, 1),
+                                                     kernel_size=(
+                                                         self.conv_kernel_size, 1),
                                                      stride=1, padding=(self.padding_num, 0),
                                                      groups=self.groups, bias=True)
             self.dilate_conv_for_concat2 = nn.Conv2d(planes * self.expansion,
                                                      planes * self.expansion,
-                                                     kernel_size=(self.conv_kernel_size, 1),
+                                                     kernel_size=(
+                                                         self.conv_kernel_size, 1),
                                                      stride=1, padding=(self.padding_num, 0),
                                                      groups=self.groups, bias=True)
             self.bn_for_concat = nn.BatchNorm2d(planes * self.expansion)
@@ -284,7 +300,8 @@ class ResNestBottleneck(nn.Module):
         out = self.relu(out)
 
         out = MPNCOV.CovpoolLayer(out)  # Nxdxd
-        out = out.view(out.size(0), out.size(1), out.size(2), 1).contiguous()  # Nxdxdx1
+        out = out.view(out.size(0), out.size(
+            1), out.size(2), 1).contiguous()  # Nxdxdx1
 
         out = self.row_bn(out)
         out = self.row_conv_group(out)  # Nx512x1x1
@@ -303,7 +320,8 @@ class ResNestBottleneck(nn.Module):
         out = self.adppool(out)  # keep the feature map size to 8x8
 
         out = cov_feature(out)  # Nx64x64
-        out = out.view(out.size(0), out.size(1), out.size(2), 1).contiguous()  # Nx64x64x1
+        out = out.view(out.size(0), out.size(1), out.size(2),
+                       1).contiguous()  # Nx64x64x1
         out = self.row_bn_for_spatial(out)
 
         out = self.row_conv_group_for_spatial(out)  # Nx256x1x1
@@ -311,9 +329,11 @@ class ResNestBottleneck(nn.Module):
 
         out = self.fc_adapt_channels_for_spatial(out)  # Nx64x1x1
         out = self.sigmoid(out)
-        out = out.view(out.size(0), 1, self.sp_h, self.sp_w).contiguous()  # Nx1x8x8
+        out = out.view(out.size(0), 1, self.sp_h,
+                       self.sp_w).contiguous()  # Nx1x8x8
 
-        out = self.adpunpool(out, (pre_att.size(2), pre_att.size(3)))  # unpool Nx1xHxW
+        out = self.adpunpool(
+            out, (pre_att.size(2), pre_att.size(3)))  # unpool Nx1xHxW
 
         return out
 
@@ -361,7 +381,8 @@ class ResNestBottleneck(nn.Module):
             pre_att = out
             chan_att = self.chan_att(out)
             pos_att = self.pos_att(out)
-            out = torch.max(pre_att * chan_att, self.relu(pre_att.clone() * pos_att))
+            out = torch.max(pre_att * chan_att,
+                            self.relu(pre_att.clone() * pos_att))
 
         elif self.attention == '&':  # fusion manner: concat
             pre_att = out
@@ -512,7 +533,6 @@ class ResNestEncoder(ResNet, EncoderMixin):
         state_dict.pop("fc.bias", None)
         state_dict.pop("fc.weight", None)
         super().load_state_dict(state_dict, **kwargs)
-        
 
 
 resnest_weights = {
@@ -683,48 +703,34 @@ for k, v in timm_resnest_encoders.items():
     smp.encoders.encoders[f'{k}-addgsop'] = v
     print(f'Added Model:\t{k}-addgsop')
 
-from base64 import encode
-from pyrsistent import m
-import pytorch_lightning as pl
-import torch
-import torch.nn as nn
-import torch.optim.lr_scheduler as lr_scheduler
-from adamp import AdamP
-from torchmetrics.functional import jaccard_index, f1_score, precision, recall, accuracy
-import segmentation_models_pytorch as smp
 
-import os
-import sys
-import inspect
-sys.path.append(os.path.realpath(os.path.join(os.path.dirname(inspect.getfile(inspect.currentframe())), '../')))
+sys.path.append(os.path.realpath(os.path.join(
+    os.path.dirname(inspect.getfile(inspect.currentframe())), '../')))
 
-from losses import FocalLoss
 
 """ Parts of the U-Net model """
-import torch.nn as nn
-import torch
-import segmentation_models_pytorch as smp
-
 
 
 class SoftDiceLoss(nn.Module):
-    def __init__(self, smooth=1., dims=(-2,-1)):
+    def __init__(self, smooth=1., dims=(-2, -1)):
 
         super(SoftDiceLoss, self).__init__()
         self.smooth = smooth
         self.dims = dims
-    
+
     def forward(self, x, y):
         tp = (x * y).sum(self.dims)
         fp = (x * (1 - y)).sum(self.dims)
         fn = ((1 - x) * y).sum(self.dims)
-        
+
         dc = (2 * tp + self.smooth) / (2 * tp + fp + fn + self.smooth)
         dc = dc.mean()
         return 1 - dc
-    
+
+
 bce_fn = nn.BCEWithLogitsLoss()
 dice_fn = SoftDiceLoss()
+
 
 def loss_fn(y_pred, y_true):
     bce = bce_fn(y_pred, y_true)
@@ -743,17 +749,18 @@ def loss_fn(y_pred, y_true):
 def mask_onehot(masks):
     # batch_size, h, w
     masks = masks.long()
-    masks_onehot = torch.zeros(masks.size(0), masks.max() + 1, masks.size(1), masks.size(2)).to(masks.device)
+    masks_onehot = torch.zeros(masks.size(0), masks.max(
+    ) + 1, masks.size(1), masks.size(2)).to(masks.device)
     masks_onehot = masks_onehot.scatter_(1, masks.unsqueeze(1), 1)
     return masks_onehot
-    
 
 
 class ResNeStGSoPUPnetPPModel(pl.LightningModule):
     def __init__(self, args=None, encoder='timm-resnest26d-addgsop'):
         super().__init__()
         # 取消预训练
-        self.model = smp.UnetPlusPlus(encoder_name=encoder, encoder_weights=None, in_channels=3, classes=1)
+        self.model = smp.UnetPlusPlus(
+            encoder_name=encoder, encoder_weights=None, in_channels=3, classes=1)
         self.args = args
         self.criterion = loss_fn
 
@@ -763,14 +770,18 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
 
     def configure_optimizers(self):
         if self.args.optimizer == 'adam':
-            optimizer = torch.optim.Adam(self.parameters(), lr=self.args.learning_rate)
+            optimizer = torch.optim.Adam(
+                self.parameters(), lr=self.args.learning_rate)
         elif self.args.optimizer == 'adamw':
-            optimizer = torch.optim.AdamW(self.parameters(), lr=self.args.learning_rate)
+            optimizer = torch.optim.AdamW(
+                self.parameters(), lr=self.args.learning_rate)
         elif self.args.optimizer == 'adamp':
-            optimizer = AdamP(self.parameters(), lr=self.args.learning_rate, betas=(0.9, 0.999), weight_decay=1e-2)
+            optimizer = AdamP(self.parameters(), lr=self.args.learning_rate, betas=(
+                0.9, 0.999), weight_decay=1e-2)
 
         if self.args.scheduler == "reducelr":
-            scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, factor=0.5, mode="max", verbose=True)
+            scheduler = lr_scheduler.ReduceLROnPlateau(
+                optimizer, patience=10, factor=0.5, mode="max", verbose=True)
             return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val/jac_idx"}
 
         elif self.args.scheduler == "cosineanneal":
@@ -788,37 +799,43 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
         loss = self.criterion(outputs, mask.unsqueeze(1).float())
         pre_label = outputs.sigmoid()
         jaccard_index_value = jaccard_index(pre_label, mask, num_classes=2)
-        f1 = f1_score(pre_label, mask, multiclass=True, num_classes=2, mdmc_average = 'global')
-        acc = accuracy(pre_label, mask,multiclass=True, num_classes=2, mdmc_average = 'global')
+        f1 = f1_score(pre_label, mask, multiclass=True,
+                      num_classes=2, mdmc_average='global')
+        acc = accuracy(pre_label, mask, multiclass=True,
+                       num_classes=2, mdmc_average='global')
 
-        self.log('train/loss', loss, on_epoch=True, on_step=True, prog_bar=True, sync_dist=True)
+        self.log('train/loss', loss, on_epoch=True,
+                 on_step=True, prog_bar=True, sync_dist=True)
         self.log('train/jac_idx', jaccard_index_value, on_epoch=True, on_step=True, prog_bar=True,
                  sync_dist=True)
-        self.log('train/f1', f1, on_epoch=True, on_step=True, prog_bar=True, sync_dist=True)
-        self.log('train/acc', acc, on_epoch=True, on_step=True, prog_bar=True, sync_dist=True)
-        
+        self.log('train/f1', f1, on_epoch=True,
+                 on_step=True, prog_bar=True, sync_dist=True)
+        self.log('train/acc', acc, on_epoch=True,
+                 on_step=True, prog_bar=True, sync_dist=True)
 
         return {"loss": loss, "jac_idx": jaccard_index_value, "f1": f1, "acc": acc}
 
     def validation_step(self, val_batch, batch_idx):
         image, mask = val_batch
         mask = mask.long()
-        
+
         outputs = self.model(image)
         loss = self.criterion(outputs, mask.unsqueeze(1).float())
-        print(f'loss =',loss)
         pre_label = outputs.sigmoid()
         jaccard_index_value = jaccard_index(pre_label, mask, num_classes=2)
-        f1 = f1_score(pre_label, mask, multiclass=True, num_classes=2, mdmc_average = 'global')
-        acc = accuracy(pre_label, mask,multiclass=True, num_classes=2, mdmc_average = 'global')
+        f1 = f1_score(pre_label, mask, multiclass=True,
+                      num_classes=2, mdmc_average='global')
+        acc = accuracy(pre_label, mask, multiclass=True,
+                       num_classes=2, mdmc_average='global')
 
-
-        self.log('val/loss', loss, on_epoch=True, on_step=True, prog_bar=True, sync_dist=True)
+        self.log('val/loss', loss, on_epoch=True,
+                 on_step=True, prog_bar=True, sync_dist=True)
         self.log('val/jac_idx', jaccard_index_value, on_epoch=True, on_step=True, prog_bar=True,
                  sync_dist=True)
-        self.log('val/f1', f1, on_epoch=True, on_step=True, prog_bar=True, sync_dist=True)
-        self.log('val/acc', acc, on_epoch=True, on_step=True, prog_bar=True, sync_dist=True)
-        
+        self.log('val/f1', f1, on_epoch=True, on_step=True,
+                 prog_bar=True, sync_dist=True)
+        self.log('val/acc', acc, on_epoch=True,
+                 on_step=True, prog_bar=True, sync_dist=True)
 
         return {"loss": loss, "jac_idx": jaccard_index_value, "f1": f1, "acc": acc}
 
@@ -830,24 +847,25 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
         loss = self.criterion(outputs, mask.unsqueeze(1).float())
         pre_label = outputs.sigmoid()
         jaccard_index_value = jaccard_index(pre_label, mask, num_classes=2)
-        f1 = f1_score(pre_label, mask, multiclass=True, num_classes=2, mdmc_average = 'global')
-        acc = accuracy(pre_label, mask,multiclass=True, num_classes=2, mdmc_average = 'global')
+        f1 = f1_score(pre_label, mask, multiclass=True,
+                      num_classes=2, mdmc_average='global')
+        acc = accuracy(pre_label, mask, multiclass=True,
+                       num_classes=2, mdmc_average='global')
 
-        
-        self.log('test/loss', loss, on_epoch=True, on_step=True, prog_bar=True, sync_dist=True)
+        self.log('test/loss', loss, on_epoch=True,
+                 on_step=True, prog_bar=True, sync_dist=True)
         self.log('test/jac_idx', jaccard_index_value, on_epoch=True, on_step=True, prog_bar=True,
                  sync_dist=True)
-        self.log('test/f1', f1, on_epoch=True, on_step=True, prog_bar=True, sync_dist=True)
-        self.log('test/acc', acc, on_epoch=True, on_step=True, prog_bar=True, sync_dist=True)
-         
+        self.log('test/f1', f1, on_epoch=True, on_step=True,
+                 prog_bar=True, sync_dist=True)
+        self.log('test/acc', acc, on_epoch=True,
+                 on_step=True, prog_bar=True, sync_dist=True)
 
         return {"loss": loss, "jac_idx": jaccard_index_value, "f1": f1, "acc": acc}
 
 # import segmentation_models_pytorch as smp
 
+
 if __name__ == '__main__':
-    a = torch.randn(2, 2, 256, 256)
-    b = torch.randn(2, 256, 256).long()
-    x, y = torch.randn(10, 2), (torch.rand(10) > .5).long()
-    print(x.shape, y.shape)
-    
+    model = ResNeStGSoPUPnetPPModel()
+    print(model)

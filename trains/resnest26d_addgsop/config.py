@@ -8,3 +8,6 @@ from models.ResNeSt_GSoP_Add import ResNeStGSoPUPnetPPModel
 N_NAME = os.path.basename(os.path.dirname(inspect.getfile(inspect.currentframe())))
 
 MODEL_INTERFACE = ResNeStGSoPUPnetPPModel
+if __name__ == '__main__':
+    model = ResNeStGSoPUPnetPPModel()
+    print(model)
