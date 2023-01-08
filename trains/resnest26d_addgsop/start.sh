@@ -3,10 +3,11 @@ python train.py --gpus=3 \
  --name resnest14dupp \
  --name ResNeSt26dAddGSoPUnetPP \
  --model ResNeSt26dAddGSoPUnetPP \
- --precision 16 \
+ --precision 32 \
  --buildingSegTransform True \
  --batch_size 32 \
  --epochs 24 \
  --learning_rate 0.001 \
- --optimizer adamw
+ --optimizer sgd \
+ --scheduler cosineanneal
 

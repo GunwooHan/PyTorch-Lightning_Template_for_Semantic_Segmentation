@@ -771,13 +771,23 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
     def configure_optimizers(self):
         if self.args.optimizer == 'adam':
             optimizer = torch.optim.Adam(
-                self.parameters(), lr=self.args.learning_rate)
+                self.parameters(), lr=self.args.learning_rate, eps=1e-5)
         elif self.args.optimizer == 'adamw':
             optimizer = torch.optim.AdamW(
-                self.parameters(), lr=self.args.learning_rate)
+                self.parameters(), lr=self.args.learning_rate, eps=1e-5)
         elif self.args.optimizer == 'adamp':
             optimizer = AdamP(self.parameters(), lr=self.args.learning_rate, betas=(
-                0.9, 0.999), weight_decay=1e-2)
+                0.9, 0.999), weight_decay=1e-4, eps=1e-5)
+        elif self.args.optimizer == 'adadelta':
+            optimizer = torch.optim.Adadelta(
+                self.parameters(), lr=self.args.learning_rate, weight_decay=1e-4)
+        elif self.args.optimizer == 'sgd':
+            optimizer = torch.optim.SGD(
+                self.parameters(), lr=self.args.learning_rate, weight_decay=1e-4)
+        elif self.args.optimizer == 'asgd':
+            optimizer = torch.optim.ASGD(
+                self.parameters(), lr=self.args.learning_rate, weight_decay=1e-4)
+        
 
         if self.args.scheduler == "reducelr":
             scheduler = lr_scheduler.ReduceLROnPlateau(
@@ -785,7 +795,7 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
             return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val/jac_idx"}
 
         elif self.args.scheduler == "cosineanneal":
-            scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=1, eta_min=1e-5,
+            scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=1,
                                                                  last_epoch=-1, verbose=True)
 
         return {"optimizer": optimizer, "lr_scheduler": scheduler}
@@ -817,6 +827,7 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
 
     def validation_step(self, val_batch, batch_idx):
         image, mask = val_batch
+        # Mask 增加一个维度
         mask = mask.long()
 
         outputs = self.model(image)
