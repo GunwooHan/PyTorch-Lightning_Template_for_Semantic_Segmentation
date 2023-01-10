@@ -6,8 +6,7 @@ python train.py --gpus=3 \
  --precision 32 \
  --buildingSegTransform True \
  --batch_size 32 \
- --epochs 24 \
- --learning_rate 0.001 \
- --optimizer sgd \
- --scheduler cosineanneal
-
+ --epochs 64 \
+ --learning_rate 0.0005 \
+ --optimizer adamp \
+ --kfold 2 \

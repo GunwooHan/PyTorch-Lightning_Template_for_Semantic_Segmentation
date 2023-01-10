@@ -103,7 +103,8 @@ if __name__ == '__main__':
         #                                               num_workers=args.num_workers)
         from pytorch_lightning.strategies.ddp import DDPStrategy
         trainer = pl.Trainer(accelerator='gpu',
-                             devices=-1,
+                            #  devices=1,
+                             gpus=[0, 1],
                              precision=args.precision,
                              max_epochs=args.epochs,
                              log_every_n_steps=50,
