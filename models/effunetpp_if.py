@@ -40,10 +40,11 @@ class SoftDiceLoss(nn.Module):
 bce_fn = nn.BCEWithLogitsLoss()
 dice_fn = SoftDiceLoss()
 
+
 def loss_fn(y_pred, y_true):
     bce = bce_fn(y_pred, y_true)
-    dice = dice_fn(y_pred.sigmoid(), y_true)
-    return 0.8*bce+ 0.2*dice
+    # dice = dice_fn(y_pred.sigmoid(), y_true)
+    return bce
     # return bce
 
 # n_loss = FocalLoss(gamma=2)
@@ -64,10 +65,10 @@ def mask_onehot(masks):
 
 
 class EffUnetPPModel(pl.LightningModule):
-    def __init__(self, args=None):
+    def __init__(self, args=None, encoder='efficientnet-b4'):
         super().__init__()
         # 取消预训练
-        self.model = smp.UnetPlusPlus(encoder_name='efficientnet-b7', encoder_weights='imagenet', in_channels=3, classes=1)
+        self.model = smp.UnetPlusPlus(encoder_name=encoder, encoder_weights=None, in_channels=3, classes=1)
         self.args = args
         self.criterion = loss_fn
 

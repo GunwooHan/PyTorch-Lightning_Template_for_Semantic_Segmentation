@@ -67,7 +67,7 @@ if __name__ == '__main__':
     # train_images, val_images, train_masks, val_masks = train_test_split(all_imgs, all_masks, test_size=0.2, random_state=args.seed)
     # print(f'train_images: {len(train_images)}, val_images: {len(val_images)}')
     
-    model = cfg.MODEL_INTERFACE(args, encoder='timm-resnest26d-addgsop')
+    model = cfg.MODEL_INTERFACE(args, encoder='timm-resnest26d-meangsop')
     # model.apply(kaiming_init)
         
     kf = KFold(n_splits=args.kfold)

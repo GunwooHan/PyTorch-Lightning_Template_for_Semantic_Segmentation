@@ -18,11 +18,14 @@ from sklearn.model_selection import KFold, StratifiedKFold, GroupKFold
 
 from datasets import SegmentationDataset
 from transforms import make_transform
-from models.unet_inferface import UnetModel
+
 from utils import train_test_split
 
 import config as cfg
 from utils import kaiming_init
+
+import warnings
+warnings.filterwarnings("ignore")
 
 parser = argparse.ArgumentParser()
 
@@ -65,7 +68,7 @@ if __name__ == '__main__':
     # train_images, val_images, train_masks, val_masks = train_test_split(all_imgs, all_masks, test_size=0.2, random_state=args.seed)
     # print(f'train_images: {len(train_images)}, val_images: {len(val_images)}')
     
-    model = cfg.MODEL_INTERFACE(args)
+    model = cfg.MODEL_INTERFACE(args, encoder='timm-resnest26d-addgsop')
     # model.apply(kaiming_init)
         
     kf = KFold(n_splits=args.kfold)
@@ -98,17 +101,16 @@ if __name__ == '__main__':
         # test_ds = SegmentationDataset(test_images, test_masks, val_transform)
         # test_dataloader = torch.utils.data.DataLoader(test_ds, batch_size=1,
         #                                               num_workers=args.num_workers)
-
         trainer = pl.Trainer(accelerator='gpu',
-                             devices=[0, 1],
+                            #  devices=1,
+                             gpus=[0, 1],
                              precision=args.precision,
                              max_epochs=args.epochs,
                              log_every_n_steps=50,
                             #  amp_backend="apex",
                             #  auto_lr_find=True,
                             #  auto_scale_batch_size="binsearch",
-                            #  strategy="ddp_find_unused_parameters_false",
-                            strategy="ddp",
+                             strategy="ddp_find_unused_parameters_false",
                             #  strategy="cuda",
                              # num_sanity_val_steps=0,
                              # limit_train_batches=5,
@@ -116,7 +118,7 @@ if __name__ == '__main__':
                              logger=wandb_logger,
                              callbacks=[checkpoint_callback, early_stop_callback]
                              )
-
+        # trainer.tune(model)
         trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
         # trainer.test(dataloaders=test_dataloader)
         wandb.finish()

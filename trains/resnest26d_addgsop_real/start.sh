@@ -1,8 +1,8 @@
 python train.py --gpus=3 \
  --train_data_dir ~/codes/datasets/TianChiBuilding/train \
  --name resnest14dupp \
- --name EffNetb4UnetPP \
- --model EffNetb4UnetPP \
+ --name ResNeSt26dAddGSoPUnetPP \
+ --model ResNeSt26dAddGSoPUnetPP \
  --precision 32 \
  --buildingSegTransform True \
  --batch_size 32 \
