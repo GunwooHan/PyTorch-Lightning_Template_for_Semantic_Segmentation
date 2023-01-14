@@ -69,7 +69,7 @@ def main(args):
                 score = model(img)[0][0]
             score_sigmoid = score.sigmoid().cpu().numpy()
             score_sigmoid = (score_sigmoid >=0.5).astype(np.uint8)
-            score_sigmoid = cv2.resize(score_sigmoid, (512, 512))
+            # score_sigmoid = cv2.resize(score_sigmoid, (512, 512))
         
         # print(pred.shape)
         # 保存图片

@@ -1,6 +1,7 @@
 import os
 import sys
 import inspect
+
 sys.path.append(os.path.realpath(os.path.join(os.path.dirname(inspect.getfile(inspect.currentframe())), '../../')))
 sys.path.append(os.path.realpath(os.path.join(os.path.dirname(inspect.getfile(inspect.currentframe())), './')))
 import glob
@@ -35,7 +36,7 @@ parser.add_argument('--test_data_dir', type=str, default='data/val')
 
 
 parser.add_argument('--precision', type=int, default=32)
-parser.add_argument('--img_size', type=int, default=512)
+parser.add_argument('--img_size', type=int, default=224)
 parser.add_argument('--num_workers', type=int, default=24)
 parser.add_argument('--project', type=str, default='sikseki_segmentation_lv1')
 parser.add_argument('--name', type=str, default='fcn_resnet50')
@@ -56,8 +57,6 @@ parser.add_argument('--gpus', type=int, default=1)
 parser.add_argument('--buildingSegTransform', type=bool, default=True)
 args = parser.parse_args()
 
-
-
 if __name__ == '__main__':
     pl.seed_everything(args.seed)
     all_imgs = glob.glob(os.path.join(args.train_data_dir, '*.jpg'))
@@ -68,7 +67,7 @@ if __name__ == '__main__':
     # train_images, val_images, train_masks, val_masks = train_test_split(all_imgs, all_masks, test_size=0.2, random_state=args.seed)
     # print(f'train_images: {len(train_images)}, val_images: {len(val_images)}')
     
-    model = cfg.MODEL_INTERFACE(args, encoder='timm-resnest26d-addgsop')
+    model = cfg.MODEL_INTERFACE(args, encoder='timm-resnest26d-meangsop')
     # model.apply(kaiming_init)
         
     kf = KFold(n_splits=args.kfold)
@@ -101,6 +100,7 @@ if __name__ == '__main__':
         # test_ds = SegmentationDataset(test_images, test_masks, val_transform)
         # test_dataloader = torch.utils.data.DataLoader(test_ds, batch_size=1,
         #                                               num_workers=args.num_workers)
+        from pytorch_lightning.strategies.ddp import DDPStrategy
         trainer = pl.Trainer(accelerator='gpu',
                             #  devices=1,
                              gpus=[0, 1],
@@ -118,6 +118,8 @@ if __name__ == '__main__':
                              logger=wandb_logger,
                              callbacks=[checkpoint_callback, early_stop_callback]
                              )
+        
+        # set broadcast_buffers=True
         # trainer.tune(model)
         trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
         # trainer.test(dataloaders=test_dataloader)
