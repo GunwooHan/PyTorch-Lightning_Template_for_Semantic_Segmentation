@@ -37,7 +37,7 @@ parser.add_argument('--test_data_dir', type=str, default='data/val')
 
 parser.add_argument('--precision', type=int, default=32)
 parser.add_argument('--img_size', type=int, default=224)
-parser.add_argument('--num_workers', type=int, default=12)
+parser.add_argument('--num_workers', type=int, default=24)
 parser.add_argument('--project', type=str, default='sikseki_segmentation_lv1')
 parser.add_argument('--name', type=str, default='fcn_resnet50')
 parser.add_argument('--model', type=str, default='Unet')
@@ -67,7 +67,7 @@ if __name__ == '__main__':
     # train_images, val_images, train_masks, val_masks = train_test_split(all_imgs, all_masks, test_size=0.2, random_state=args.seed)
     # print(f'train_images: {len(train_images)}, val_images: {len(val_images)}')
     
-    model = cfg.MODEL_INTERFACE(args, encoder='timm-resnest26d-meangsop-sca')
+    model = cfg.MODEL_INTERFACE(args, encoder='timm-resnest26d-meangsop')
     # model.apply(kaiming_init)
         
     kf = KFold(n_splits=args.kfold)

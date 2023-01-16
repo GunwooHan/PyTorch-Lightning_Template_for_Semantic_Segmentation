@@ -1,12 +1,12 @@
 python train.py --gpus=3 \
  --train_data_dir ~/codes/datasets/TianChiBuilding/train \
  --name resnest14dupp \
- --name ResNeSt26dMeanGSoPSEUnetPP \
- --model ResNeSt26dMeanGSoPSEUnetPP \
+ --name ResNeSt50dMeanGSoPUnetPP \
+ --model ResNeSt50dMeanGSoPUnetPP \
  --precision 32 \
  --buildingSegTransform True \
  --batch_size 32 \
- --epochs 64 \
+ --epochs 32 \
  --learning_rate 0.0005 \
  --optimizer adamp \
  --kfold 2 \
