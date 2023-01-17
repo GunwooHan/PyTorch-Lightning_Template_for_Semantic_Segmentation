@@ -1,8 +1,6 @@
 import os
 import sys
 import inspect
-
-from regex import D
 sys.path.append(os.path.realpath(os.path.join(os.path.dirname(inspect.getfile(inspect.currentframe())), '../../')))
 sys.path.append(os.path.realpath(os.path.join(os.path.dirname(inspect.getfile(inspect.currentframe())), './')))
 import glob
@@ -58,6 +56,8 @@ parser.add_argument('--gpus', type=int, default=1)
 parser.add_argument('--buildingSegTransform', type=bool, default=True)
 args = parser.parse_args()
 
+
+
 if __name__ == '__main__':
     pl.seed_everything(args.seed)
     all_imgs = glob.glob(os.path.join(args.train_data_dir, '*.jpg'))
@@ -101,9 +101,9 @@ if __name__ == '__main__':
         # test_ds = SegmentationDataset(test_images, test_masks, val_transform)
         # test_dataloader = torch.utils.data.DataLoader(test_ds, batch_size=1,
         #                                               num_workers=args.num_workers)
-        from pytorch_lightning.strategies.ddp import DDPStrategy
         trainer = pl.Trainer(accelerator='gpu',
-                             devices=-1,
+                            #  devices=1,
+                             gpus=[0, 1],
                              precision=args.precision,
                              max_epochs=args.epochs,
                              log_every_n_steps=50,
@@ -111,7 +111,6 @@ if __name__ == '__main__':
                             #  auto_lr_find=True,
                             #  auto_scale_batch_size="binsearch",
                              strategy="ddp_find_unused_parameters_false",
-                            #  strategy = DDPStrategy(find_unused_parameters=True, broadcast_buffers=False),
                             #  strategy="cuda",
                              # num_sanity_val_steps=0,
                              # limit_train_batches=5,
@@ -119,8 +118,6 @@ if __name__ == '__main__':
                              logger=wandb_logger,
                              callbacks=[checkpoint_callback, early_stop_callback]
                              )
-        
-        # set broadcast_buffers=True
         # trainer.tune(model)
         trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
         # trainer.test(dataloaders=test_dataloader)

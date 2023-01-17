@@ -32,6 +32,7 @@ parser.add_argument('--test_data_dir', type=str, default='data/val')
 
 
 parser.add_argument('--precision', type=int, default=32)
+parser.add_argument('--img_size', type=int, default=512)
 parser.add_argument('--num_workers', type=int, default=24)
 parser.add_argument('--project', type=str, default='sikseki_segmentation_lv1')
 parser.add_argument('--name', type=str, default='fcn_resnet50')
@@ -43,8 +44,8 @@ parser.add_argument('--encoder', type=str, default='resnet50')
 parser.add_argument('--epochs', type=int, default=5)
 parser.add_argument('--kfold', type=int, default=5)
 parser.add_argument('--batch_size', type=int, default=12)
-parser.add_argument('--learning_rate', type=float, default=1e-5 * 5)
-parser.add_argument('--optimizer', type=str, default='adamw')
+parser.add_argument('--learning_rate', type=float, default=1e-4)
+parser.add_argument('--optimizer', type=str, default='adamp')
 parser.add_argument('--scheduler', type=str, default='reducelr')
 # gpus
 parser.add_argument('--gpus', type=int, default=1)
@@ -99,16 +100,22 @@ if __name__ == '__main__':
         #                                               num_workers=args.num_workers)
 
         trainer = pl.Trainer(accelerator='gpu',
-                             devices=args.gpus,
+                             devices=[0, 1],
                              precision=args.precision,
                              max_epochs=args.epochs,
                              log_every_n_steps=50,
-                             strategy='ddp',
+                            #  amp_backend="apex",
+                            #  auto_lr_find=True,
+                            #  auto_scale_batch_size="binsearch",
+                            #  strategy="ddp_find_unused_parameters_false",
+                            strategy="ddp",
+                            #  strategy="cuda",
                              # num_sanity_val_steps=0,
                              # limit_train_batches=5,
                              # limit_val_batches=1,
                              logger=wandb_logger,
-                             callbacks=[checkpoint_callback, early_stop_callback])
+                             callbacks=[checkpoint_callback, early_stop_callback]
+                             )
 
         trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
         # trainer.test(dataloaders=test_dataloader)

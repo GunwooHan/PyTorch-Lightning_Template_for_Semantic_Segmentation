@@ -6,6 +6,7 @@ Adapted from original PyTorch impl w/ weights at https://github.com/zhanghang198
 
 Modified for torchscript compat, and consistency with timm by Ross Wightman
 """
+from xmlrpc.client import boolean
 from losses import FocalLoss
 import inspect
 import sys
@@ -31,6 +32,7 @@ import torch.nn.functional as F
 from . import MPNCOV
 from segmentation_models_pytorch.encoders._base import EncoderMixin
 import segmentation_models_pytorch as smp
+from .att_block import SELayer
 
 """ Split Attention Conv2d (for ResNeSt Models)
 
@@ -90,10 +92,10 @@ class SplitAttn(nn.Module):
         self.rsoftmax = RadixSoftmax(radix, groups)
 
     def forward(self, x):
-        x = self.conv(x)
+        x = self.conv(x) # 3x3 Conv
         x = self.bn0(x)
         x = self.drop(x)
-        x = self.act0(x)
+        x = self.act0(x) # ReLU
 
         B, RC, H, W = x.shape
         if self.radix > 1:
@@ -166,6 +168,8 @@ def cov_feature(x):
     return y
 
 
+
+
 class ResNestBottleneck(nn.Module):
     """ResNet Bottleneck
     """
@@ -176,7 +180,8 @@ class ResNestBottleneck(nn.Module):
             self, inplanes, planes, stride=1, downsample=None,
             radix=1, cardinality=1, base_width=64, avd=False, avd_first=False, is_first=False,
             reduce_first=1, dilation=1, first_dilation=None, act_layer=nn.ReLU, norm_layer=nn.BatchNorm2d,
-            attn_layer=None, aa_layer=None, drop_block=None, drop_path=None, attention='+', att_dim=128):
+            attn_layer=None, aa_layer=None, drop_block=None, drop_path=None, attention='+', att_dim=128,
+            reduction=16, se:boolean = True):
         super(ResNestBottleneck, self).__init__()
         assert reduce_first == 1  # not supported
         assert attn_layer is None  # not supported
@@ -288,6 +293,9 @@ class ResNestBottleneck(nn.Module):
 
         self.downsample = downsample
         self.attention = attention
+        
+        self.se = SELayer(planes * self.expansion, reduction=16) if se else nn.Identity()
+        
 
     def zero_init_last(self):
         nn.init.zeros_(self.bn3.weight)
@@ -343,8 +351,6 @@ class ResNestBottleneck(nn.Module):
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.act1(out)
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
-
 
         if self.avd_first is not None:
             out = self.avd_first(out)
@@ -353,14 +359,16 @@ class ResNestBottleneck(nn.Module):
         out = self.bn2(out)
         out = self.drop_block(out)
         out = self.act2(out)
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
 
         if self.avd_last is not None:
             out = self.avd_last(out)
 
         out = self.conv3(out)
         out = self.bn3(out)
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
+        out = self.se(out)
+
+        if self.downsample is not None:
+            shortcut = self.downsample(x)
 
         if self.attention == '1':  # channel attention,GSoP default mode
             pre_att = out
@@ -393,19 +401,10 @@ class ResNestBottleneck(nn.Module):
             out2 = self.dilate_conv_for_concat2(self.relu(pre_att * pos_att))
             out = out1 + out2
             out = self.bn_for_concat(out)
-            
-        if self.downsample is not None:
-            shortcut = self.downsample(x)
-        
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
 
-        out = out + shortcut
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
-
-        out = self.act3(out)
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
-
-        return out
+        out_o = out + shortcut
+        out_o = self.act3(out_o)
+        return out_o
 
 
 def _create_resnest(variant, pretrained=False, **kwargs):
@@ -535,7 +534,6 @@ class ResNestEncoder(ResNet, EncoderMixin):
         features = []
         for i in range(self._depth + 1):
             x = stages[i](x)
-            assert torch.isnan(x).sum() == 0 and torch.isinf(x).sum() == 0, (f'UPP output of {i} layer is nan or infinit', x.std()) #out 是你本层的输出 out.std()输出标准差
             features.append(x)
 
         return features
@@ -711,8 +709,9 @@ timm_resnest_encoders = {
 
 
 for k, v in timm_resnest_encoders.items():
-    smp.encoders.encoders[f'{k}-addgsop'] = v
-    print(f'Added Model:\t{k}-addgsop')
+    name = f'{k}-meangsop-se'
+    smp.encoders.encoders[name] = v
+    print(f'Added Model:\t{name}')
 
 
 sys.path.append(os.path.realpath(os.path.join(
@@ -767,7 +766,7 @@ def mask_onehot(masks):
 
 
 class ResNeStGSoPUPnetPPModel(pl.LightningModule):
-    def __init__(self, args=None, encoder='timm-resnest26d-addgsop'):
+    def __init__(self, args=None, encoder='timm-resnest26d-meangsop-se'):
         super().__init__()
         # 取消预训练
         self.model = smp.UnetPlusPlus(

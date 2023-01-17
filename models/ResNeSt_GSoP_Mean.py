@@ -343,8 +343,6 @@ class ResNestBottleneck(nn.Module):
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.act1(out)
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
-
 
         if self.avd_first is not None:
             out = self.avd_first(out)
@@ -353,14 +351,15 @@ class ResNestBottleneck(nn.Module):
         out = self.bn2(out)
         out = self.drop_block(out)
         out = self.act2(out)
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
 
         if self.avd_last is not None:
             out = self.avd_last(out)
 
         out = self.conv3(out)
         out = self.bn3(out)
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
+
+        if self.downsample is not None:
+            shortcut = self.downsample(x)
 
         if self.attention == '1':  # channel attention,GSoP default mode
             pre_att = out
@@ -393,19 +392,10 @@ class ResNestBottleneck(nn.Module):
             out2 = self.dilate_conv_for_concat2(self.relu(pre_att * pos_att))
             out = out1 + out2
             out = self.bn_for_concat(out)
-            
-        if self.downsample is not None:
-            shortcut = self.downsample(x)
-        
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
 
-        out = out + shortcut
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
-
-        out = self.act3(out)
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
-
-        return out
+        out_o = out + shortcut
+        out_o = self.act3(out_o)
+        return out_o
 
 
 def _create_resnest(variant, pretrained=False, **kwargs):
@@ -535,7 +525,6 @@ class ResNestEncoder(ResNet, EncoderMixin):
         features = []
         for i in range(self._depth + 1):
             x = stages[i](x)
-            assert torch.isnan(x).sum() == 0 and torch.isinf(x).sum() == 0, (f'UPP output of {i} layer is nan or infinit', x.std()) #out 是你本层的输出 out.std()输出标准差
             features.append(x)
 
         return features
@@ -711,8 +700,8 @@ timm_resnest_encoders = {
 
 
 for k, v in timm_resnest_encoders.items():
-    smp.encoders.encoders[f'{k}-addgsop'] = v
-    print(f'Added Model:\t{k}-addgsop')
+    smp.encoders.encoders[f'{k}-meangsop'] = v
+    print(f'Added Model:\t{k}-meangsop')
 
 
 sys.path.append(os.path.realpath(os.path.join(

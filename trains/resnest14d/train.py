@@ -68,7 +68,7 @@ if __name__ == '__main__':
     # train_images, val_images, train_masks, val_masks = train_test_split(all_imgs, all_masks, test_size=0.2, random_state=args.seed)
     # print(f'train_images: {len(train_images)}, val_images: {len(val_images)}')
     
-    model = cfg.MODEL_INTERFACE(args, encoder='timm-resnest26d')
+    model = cfg.MODEL_INTERFACE(args, encoder='timm-resnest14d')
     # model.apply(kaiming_init)
         
     kf = KFold(n_splits=args.kfold)
@@ -111,7 +111,7 @@ if __name__ == '__main__':
                             #  amp_backend="apex",
                             #  auto_lr_find=True,
                             #  auto_scale_batch_size="binsearch",
-                             strategy="ddp_find_unused_parameters_false",
+                            #  strategy="ddp_find_unused_parameters_false",
                             #  strategy="cuda",
                              # num_sanity_val_steps=0,
                              # limit_train_batches=5,

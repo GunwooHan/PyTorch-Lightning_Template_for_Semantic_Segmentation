@@ -68,7 +68,7 @@ class ResNeSt200eUnetPPModel(pl.LightningModule):
     def __init__(self, args=None, encoder='timm-resnest26d'):
         super().__init__()
         # 取消预训练
-        self.model = smp.UnetPlusPlus(encoder_name=encoder, encoder_weights='imagenet', in_channels=3, classes=1)
+        self.model = smp.UnetPlusPlus(encoder_name=encoder, encoder_weights=None, in_channels=3, classes=1)
         self.args = args
         self.criterion = loss_fn
 

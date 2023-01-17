@@ -6,6 +6,7 @@ Adapted from original PyTorch impl w/ weights at https://github.com/zhanghang198
 
 Modified for torchscript compat, and consistency with timm by Ross Wightman
 """
+from xmlrpc.client import boolean
 from losses import FocalLoss
 import inspect
 import sys
@@ -31,6 +32,7 @@ import torch.nn.functional as F
 from . import MPNCOV
 from segmentation_models_pytorch.encoders._base import EncoderMixin
 import segmentation_models_pytorch as smp
+from .att_block import SELayer
 
 """ Split Attention Conv2d (for ResNeSt Models)
 
@@ -59,14 +61,108 @@ class RadixSoftmax(nn.Module):
         return x
 
 
-class SplitAttn(nn.Module):
+# Version 1, 2023-1-13
+# class SplitCoordAtt(nn.Module):
+#     """Split-Attention (aka Splat)
+#     """
+
+#     def __init__(self, in_channels, out_channels=None, kernel_size=3, stride=1, padding=None,
+#                  dilation=1, groups=1, bias=False, radix=2, rd_ratio=0.25, rd_channels=None, rd_divisor=8,
+#                  act_layer=nn.ReLU, norm_layer=None, drop_layer=None, **kwargs):
+#         super(SplitCoordAtt, self).__init__()
+#         out_channels = out_channels or in_channels
+#         self.radix = radix
+#         mid_chs = out_channels * radix
+#         if rd_channels is None:
+#             attn_chs = make_divisible(
+#                 in_channels * radix * rd_ratio, min_value=32, divisor=rd_divisor)
+#         else:
+#             attn_chs = rd_channels * radix
+
+#         padding = kernel_size // 2 if padding is None else padding
+#         self.conv = nn.Conv2d(
+#             in_channels, mid_chs, kernel_size, stride, padding, dilation,
+#             groups=groups * radix, bias=bias, **kwargs)
+#         self.bn0 = norm_layer(mid_chs) if norm_layer else nn.Identity()
+#         self.drop = drop_layer() if drop_layer is not None else nn.Identity()
+#         self.act0 = act_layer(inplace=False)
+#         self.fc1 = nn.Conv2d(out_channels, attn_chs, 1, groups=groups)
+#         self.bn1 = norm_layer(attn_chs) if norm_layer else nn.Identity()
+#         self.act1 = act_layer(inplace=False)
+#         self.fc2_0 = nn.Conv2d(attn_chs, mid_chs, 1, groups=groups)
+#         self.fc2_1 = nn.Conv2d(attn_chs, mid_chs, 1, groups=groups)
+#         self.rsoftmax = RadixSoftmax(radix, groups)
+
+#         self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
+#         self.pool_w = nn.AdaptiveAvgPool2d((1, None))
+
+
+#     def forward(self, x):
+#         x = self.conv(x)  # 3x3 Conv C = mid_chs
+#         x = self.bn0(x)  # BN
+#         x = self.drop(x)
+#         x = self.act0(x)  # ReLU
+
+#         B, RC, H, W = x.shape
+#         if self.radix > 1:
+#             x = x.reshape((B, self.radix, RC // self.radix, H, W))
+#             x_gap = x.sum(dim=1)
+#         else:
+#             x_gap = x
+#         # print(f'x_gap.shape = {x_gap.shape}')
+
+#         # ___________________ GAP And Dense _________________
+#         # x_gap = x_gap.mean((2, 3), keepdim=True) # Global Pooling C = Out_channels
+#         # print(f'x_gap.shape = {x_gap.shape}')
+#         # x_gap = self.fc1(x_gap)
+#         # x_gap = self.bn1(x_gap)
+#         # x_gap = self.act1(x_gap)
+#         # x_attn = self.fc2(x_gap)
+
+#         # Replace with x Pool y Pool
+#         x_h = self.pool_h(x_gap)
+#         x_w = self.pool_w(x_gap).permute(0, 1, 3, 2)
+
+#         y = torch.cat([x_h, x_w], dim=2)
+#         # print(f'y.shape = {y.shape}')
+#         y = self.fc1(y)
+#         y = self.bn1(y)
+#         y = self.act1(y)
+
+#         x_h, x_w = torch.split(y, [H, W], dim=2)
+#         x_w = x_w.permute(0, 1, 3, 2)
+
+#         a_h = self.fc2_0(x_h).sigmoid()
+#         a_w = self.fc2_1(x_w).sigmoid()
+#         # print(f'a_h.shape = {a_h.shape}')
+#         # print(f'a_w.shape = {a_w.shape}')
+#         #
+#         # print(f'x.shape = {x.shape}')
+
+#         x_attn = a_h * a_w
+#         # x_attn = x_attn.view(B, -1, 1, 1)
+
+#         x_attn = x_attn.mean((2, 3), keepdim=True)
+
+#         # print(f'x_attn.shape = {x_attn.shape}')
+
+#         x_attn = self.rsoftmax(x_attn).view(B, -1, 1, 1)
+#         if self.radix > 1:
+#             out = (x * x_attn.reshape((B, self.radix,
+#                                        RC // self.radix, 1, 1))).sum(dim=1)
+#         else:
+#             out = x.reshape((B, RC, H, W)) * x_attn
+#         return out.contiguous()
+
+
+class SplitCoordAtt(nn.Module):
     """Split-Attention (aka Splat)
     """
 
     def __init__(self, in_channels, out_channels=None, kernel_size=3, stride=1, padding=None,
                  dilation=1, groups=1, bias=False, radix=2, rd_ratio=0.25, rd_channels=None, rd_divisor=8,
                  act_layer=nn.ReLU, norm_layer=None, drop_layer=None, **kwargs):
-        super(SplitAttn, self).__init__()
+        super(SplitCoordAtt, self).__init__()
         out_channels = out_channels or in_channels
         self.radix = radix
         mid_chs = out_channels * radix
@@ -86,14 +182,19 @@ class SplitAttn(nn.Module):
         self.fc1 = nn.Conv2d(out_channels, attn_chs, 1, groups=groups)
         self.bn1 = norm_layer(attn_chs) if norm_layer else nn.Identity()
         self.act1 = act_layer(inplace=False)
-        self.fc2 = nn.Conv2d(attn_chs, mid_chs, 1, groups=groups)
+        self.fc2_0 = nn.Conv2d(attn_chs, out_channels, 1, groups=groups)
+        self.fc2_1 = nn.Conv2d(attn_chs, out_channels, 1, groups=groups)
         self.rsoftmax = RadixSoftmax(radix, groups)
 
+        self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
+        self.pool_w = nn.AdaptiveAvgPool2d((1, None))
+
+
     def forward(self, x):
-        x = self.conv(x)
-        x = self.bn0(x)
+        x = self.conv(x)  # 3x3 Conv C = mid_chs
+        x = self.bn0(x)  # BN
         x = self.drop(x)
-        x = self.act0(x)
+        x = self.act0(x)  # ReLU
 
         B, RC, H, W = x.shape
         if self.radix > 1:
@@ -101,19 +202,31 @@ class SplitAttn(nn.Module):
             x_gap = x.sum(dim=1)
         else:
             x_gap = x
-        x_gap = x_gap.mean((2, 3), keepdim=True)
-        x_gap = self.fc1(x_gap)
-        x_gap = self.bn1(x_gap)
-        x_gap = self.act1(x_gap)
-        x_attn = self.fc2(x_gap)
 
-        x_attn = self.rsoftmax(x_attn).view(B, -1, 1, 1)
+        # Replace with x Pool y Pool
+        x_h = self.pool_h(x_gap)
+        x_w = self.pool_w(x_gap).permute(0, 1, 3, 2)
+
+        y = torch.cat([x_h, x_w], dim=2)
+        # print(f'y.shape = {y.shape}')
+        y = self.fc1(y)
+        y = self.bn1(y)
+        y = self.act1(y)
+
+        x_h, x_w = torch.split(y, [H, W], dim=2)
+        x_w = x_w.permute(0, 1, 3, 2)
+
+        a_h = self.fc2_0(x_h).sigmoid()
+        a_w = self.fc2_1(x_w).sigmoid()
+
+        x_attn = a_h * a_w
         if self.radix > 1:
-            out = (x * x_attn.reshape((B, self.radix,
-                   RC // self.radix, 1, 1))).sum(dim=1)
+            x = x.sum(dim=1)
         else:
-            out = x * x_attn
-        return out.contiguous()
+            x = x.reshape((B, RC, H, W))
+
+
+        return x * x_attn
 
 
 def _cfg(url='', **kwargs):
@@ -166,6 +279,8 @@ def cov_feature(x):
     return y
 
 
+
+
 class ResNestBottleneck(nn.Module):
     """ResNet Bottleneck
     """
@@ -176,7 +291,8 @@ class ResNestBottleneck(nn.Module):
             self, inplanes, planes, stride=1, downsample=None,
             radix=1, cardinality=1, base_width=64, avd=False, avd_first=False, is_first=False,
             reduce_first=1, dilation=1, first_dilation=None, act_layer=nn.ReLU, norm_layer=nn.BatchNorm2d,
-            attn_layer=None, aa_layer=None, drop_block=None, drop_path=None, attention='+', att_dim=128):
+            attn_layer=None, aa_layer=None, drop_block=None, drop_path=None, attention='+', att_dim=128,
+            reduction=16, se:boolean = True):
         super(ResNestBottleneck, self).__init__()
         assert reduce_first == 1  # not supported
         assert attn_layer is None  # not supported
@@ -200,7 +316,7 @@ class ResNestBottleneck(nn.Module):
             3, avd_stride, padding=1) if avd_stride > 0 and avd_first else None
 
         if self.radix >= 1:
-            self.conv2 = SplitAttn(
+            self.conv2 = SplitCoordAtt(
                 group_width, group_width, kernel_size=3, stride=stride, padding=first_dilation,
                 dilation=first_dilation, groups=cardinality, radix=radix, norm_layer=norm_layer, drop_layer=drop_block)
             self.bn2 = nn.Identity()
@@ -288,6 +404,9 @@ class ResNestBottleneck(nn.Module):
 
         self.downsample = downsample
         self.attention = attention
+        
+        self.se = SELayer(planes * self.expansion, reduction=16) if se else nn.Identity()
+        
 
     def zero_init_last(self):
         nn.init.zeros_(self.bn3.weight)
@@ -343,8 +462,6 @@ class ResNestBottleneck(nn.Module):
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.act1(out)
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
-
 
         if self.avd_first is not None:
             out = self.avd_first(out)
@@ -353,14 +470,16 @@ class ResNestBottleneck(nn.Module):
         out = self.bn2(out)
         out = self.drop_block(out)
         out = self.act2(out)
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
 
         if self.avd_last is not None:
             out = self.avd_last(out)
 
         out = self.conv3(out)
         out = self.bn3(out)
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
+        out = self.se(out)
+
+        if self.downsample is not None:
+            shortcut = self.downsample(x)
 
         if self.attention == '1':  # channel attention,GSoP default mode
             pre_att = out
@@ -393,19 +512,10 @@ class ResNestBottleneck(nn.Module):
             out2 = self.dilate_conv_for_concat2(self.relu(pre_att * pos_att))
             out = out1 + out2
             out = self.bn_for_concat(out)
-            
-        if self.downsample is not None:
-            shortcut = self.downsample(x)
-        
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
 
-        out = out + shortcut
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
-
-        out = self.act3(out)
-        assert torch.isnan(out).sum() == 0 and torch.isinf(out).sum() == 0, ('output of XX layer is nan or infinit', out.std()) #out 是你本层的输出 out.std()输出标准差
-
-        return out
+        out_o = out + shortcut
+        out_o = self.act3(out_o)
+        return out_o
 
 
 def _create_resnest(variant, pretrained=False, **kwargs):
@@ -535,7 +645,6 @@ class ResNestEncoder(ResNet, EncoderMixin):
         features = []
         for i in range(self._depth + 1):
             x = stages[i](x)
-            assert torch.isnan(x).sum() == 0 and torch.isinf(x).sum() == 0, (f'UPP output of {i} layer is nan or infinit', x.std()) #out 是你本层的输出 out.std()输出标准差
             features.append(x)
 
         return features
@@ -711,8 +820,9 @@ timm_resnest_encoders = {
 
 
 for k, v in timm_resnest_encoders.items():
-    smp.encoders.encoders[f'{k}-addgsop'] = v
-    print(f'Added Model:\t{k}-addgsop')
+    name = f'{k}-meangsop-sca'
+    smp.encoders.encoders[name] = v
+    print(f'Added Model:\t{name}')
 
 
 sys.path.append(os.path.realpath(os.path.join(
@@ -755,7 +865,7 @@ def loss_fn(y_pred, y_true):
 
 # def loss_fn(outputs, targets):
 #     return  n_loss(outputs, targets)
-
+from torch.cuda.amp import autocast, GradScaler
 
 def mask_onehot(masks):
     # batch_size, h, w
@@ -767,7 +877,7 @@ def mask_onehot(masks):
 
 
 class ResNeStGSoPUPnetPPModel(pl.LightningModule):
-    def __init__(self, args=None, encoder='timm-resnest26d-addgsop'):
+    def __init__(self, args=None, encoder='timm-resnest26d-meangsop-se'):
         super().__init__()
         # 取消预训练
         self.model = smp.UnetPlusPlus(
@@ -815,8 +925,7 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
         image, mask = train_batch
         # Mask 增加一个维度
         mask = mask.long()
-
-        outputs = self.model(image)
+        outputs = self.model(image).float()
         loss = self.criterion(outputs, mask.unsqueeze(1).float())
         pre_label = outputs.sigmoid()
         jaccard_index_value = jaccard_index(pre_label, mask, num_classes=2)
@@ -830,9 +939,9 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
         self.log('train/jac_idx', jaccard_index_value, on_epoch=True, on_step=True, prog_bar=True,
                  sync_dist=True)
         self.log('train/f1', f1, on_epoch=True,
-                 on_step=True, prog_bar=True, sync_dist=True)
+                 on_step=True, prog_bar=False, sync_dist=True)
         self.log('train/acc', acc, on_epoch=True,
-                 on_step=True, prog_bar=True, sync_dist=True)
+                 on_step=True, prog_bar=False, sync_dist=True)
 
         return {"loss": loss, "jac_idx": jaccard_index_value, "f1": f1, "acc": acc}
 
@@ -841,7 +950,7 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
         # Mask 增加一个维度
         mask = mask.long()
 
-        outputs = self.model(image)
+        outputs = self.model(image).float()
         loss = self.criterion(outputs, mask.unsqueeze(1).float())
         pre_label = outputs.sigmoid()
         jaccard_index_value = jaccard_index(pre_label, mask, num_classes=2)
@@ -855,9 +964,9 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
         self.log('val/jac_idx', jaccard_index_value, on_epoch=True, on_step=True, prog_bar=True,
                  sync_dist=True)
         self.log('val/f1', f1, on_epoch=True, on_step=True,
-                 prog_bar=True, sync_dist=True)
+                 prog_bar=False, sync_dist=True)
         self.log('val/acc', acc, on_epoch=True,
-                 on_step=True, prog_bar=True, sync_dist=True)
+                 on_step=True, prog_bar=False, sync_dist=True)
 
         return {"loss": loss, "jac_idx": jaccard_index_value, "f1": f1, "acc": acc}
 
@@ -865,7 +974,7 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
         image, mask = test_batch
         mask = mask.long()
 
-        outputs = self.model(image)
+        outputs = self.model(image).float()
         loss = self.criterion(outputs, mask.unsqueeze(1).float())
         pre_label = outputs.sigmoid()
         jaccard_index_value = jaccard_index(pre_label, mask, num_classes=2)
@@ -889,5 +998,9 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
 
 
 if __name__ == '__main__':
-    model = ResNeStGSoPUPnetPPModel()
-    print(model)
+    model = ResNeStGSoPUPnetPPModel(encoder='resnest26d-meangsop-sca',
+                                    encoder_weights=None,
+                                    classes=1,
+                                    activation=None)
+    a = torch.randn(1, 3, 256, 256)
+    print(model(a).shape)

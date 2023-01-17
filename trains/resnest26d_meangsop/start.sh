@@ -1,8 +1,8 @@
 python train.py --gpus=3 \
  --train_data_dir ~/codes/datasets/TianChiBuilding/train \
  --name resnest14dupp \
- --name EffNetb4UnetPP \
- --model EffNetb4UnetPP \
+ --name ResNeSt26dMeanGSoPUnetPP \
+ --model ResNeSt26dMeanGSoPUnetPP \
  --precision 32 \
  --buildingSegTransform True \
  --batch_size 32 \
@@ -10,4 +10,3 @@ python train.py --gpus=3 \
  --learning_rate 0.0005 \
  --optimizer adamp \
  --kfold 2 \
- --img_size 224 \
