@@ -6,7 +6,7 @@ python train.py --gpus=3 \
  --buildingSegTransform True \
  --batch_size 16 \
  --epochs 24 \
- --learning_rate 0.00008 \
+ --learning_rate 0.0001 \
  --optimizer adamw \
  --img_size 480
 
