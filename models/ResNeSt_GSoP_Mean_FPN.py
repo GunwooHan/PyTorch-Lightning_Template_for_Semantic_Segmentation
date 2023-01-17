@@ -9,6 +9,7 @@ Modified for torchscript compat, and consistency with timm by Ross Wightman
 from losses import FocalLoss
 import inspect
 import sys
+from torch.cuda.amp import autocast, GradScaler
 import os
 from torchmetrics.functional import jaccard_index, f1_score, precision, recall, accuracy
 from adamp import AdamP

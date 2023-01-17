@@ -865,7 +865,7 @@ def loss_fn(y_pred, y_true):
 
 # def loss_fn(outputs, targets):
 #     return  n_loss(outputs, targets)
-
+from torch.cuda.amp import autocast, GradScaler
 
 def mask_onehot(masks):
     # batch_size, h, w
@@ -925,8 +925,7 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
         image, mask = train_batch
         # Mask 增加一个维度
         mask = mask.long()
-
-        outputs = self.model(image)
+        outputs = self.model(image).float()
         loss = self.criterion(outputs, mask.unsqueeze(1).float())
         pre_label = outputs.sigmoid()
         jaccard_index_value = jaccard_index(pre_label, mask, num_classes=2)
@@ -940,9 +939,9 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
         self.log('train/jac_idx', jaccard_index_value, on_epoch=True, on_step=True, prog_bar=True,
                  sync_dist=True)
         self.log('train/f1', f1, on_epoch=True,
-                 on_step=True, prog_bar=True, sync_dist=True)
+                 on_step=True, prog_bar=False, sync_dist=True)
         self.log('train/acc', acc, on_epoch=True,
-                 on_step=True, prog_bar=True, sync_dist=True)
+                 on_step=True, prog_bar=False, sync_dist=True)
 
         return {"loss": loss, "jac_idx": jaccard_index_value, "f1": f1, "acc": acc}
 
@@ -951,7 +950,7 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
         # Mask 增加一个维度
         mask = mask.long()
 
-        outputs = self.model(image)
+        outputs = self.model(image).float()
         loss = self.criterion(outputs, mask.unsqueeze(1).float())
         pre_label = outputs.sigmoid()
         jaccard_index_value = jaccard_index(pre_label, mask, num_classes=2)
@@ -965,9 +964,9 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
         self.log('val/jac_idx', jaccard_index_value, on_epoch=True, on_step=True, prog_bar=True,
                  sync_dist=True)
         self.log('val/f1', f1, on_epoch=True, on_step=True,
-                 prog_bar=True, sync_dist=True)
+                 prog_bar=False, sync_dist=True)
         self.log('val/acc', acc, on_epoch=True,
-                 on_step=True, prog_bar=True, sync_dist=True)
+                 on_step=True, prog_bar=False, sync_dist=True)
 
         return {"loss": loss, "jac_idx": jaccard_index_value, "f1": f1, "acc": acc}
 
@@ -975,7 +974,7 @@ class ResNeStGSoPUPnetPPModel(pl.LightningModule):
         image, mask = test_batch
         mask = mask.long()
 
-        outputs = self.model(image)
+        outputs = self.model(image).float()
         loss = self.criterion(outputs, mask.unsqueeze(1).float())
         pre_label = outputs.sigmoid()
         jaccard_index_value = jaccard_index(pre_label, mask, num_classes=2)

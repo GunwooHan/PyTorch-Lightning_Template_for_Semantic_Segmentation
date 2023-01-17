@@ -51,6 +51,8 @@ parser.add_argument('--batch_size', type=int, default=12)
 parser.add_argument('--learning_rate', type=float, default=1e-4)
 parser.add_argument('--optimizer', type=str, default='adamp')
 parser.add_argument('--scheduler', type=str, default='reducelr')
+parser.add_argument('--accumulate_grad_batches', type=int, default=1)
+parser.add_argument('--use_swa', type=bool, default=False)
 # gpus
 parser.add_argument('--gpus', type=int, default=1)
 # buildingSegTransform
@@ -60,6 +62,11 @@ args = parser.parse_args()
 if __name__ == '__main__':
     pl.seed_everything(args.seed)
     all_imgs = glob.glob(os.path.join(args.train_data_dir, '*.jpg'))
+    # 能否被batch_size * gpus整除
+    # all_imgs = all_imgs[:len(all_imgs) // 100]
+    all_imgs = all_imgs[:len(all_imgs) // (args.batch_size * args.gpus * args.accumulate_grad_batches) 
+                        * (args.batch_size * args.gpus * args.accumulate_grad_batches)]
+    
     all_masks = [x.replace('train', 'mask') for x in all_imgs]
     print(len(all_imgs), len(all_masks))
     
@@ -101,12 +108,16 @@ if __name__ == '__main__':
         # test_dataloader = torch.utils.data.DataLoader(test_ds, batch_size=1,
         #                                               num_workers=args.num_workers)
         from pytorch_lightning.strategies.ddp import DDPStrategy
+        callbacks_list = [checkpoint_callback, early_stop_callback]
+        if args.use_swa:
+            callbacks_list.append(pl.callbacks.StochasticWeightAveraging(swa_lrs=1e-3))
         trainer = pl.Trainer(accelerator='gpu',
                             #  devices=1,
                              gpus=[0, 1],
                              precision=args.precision,
                              max_epochs=args.epochs,
-                             log_every_n_steps=50,
+                             log_every_n_steps=100,
+                            #  detect_anomaly=True,
                             #  amp_backend="apex",
                             #  auto_lr_find=True,
                             #  auto_scale_batch_size="binsearch",
@@ -116,7 +127,8 @@ if __name__ == '__main__':
                              # limit_train_batches=5,
                              # limit_val_batches=1,
                              logger=wandb_logger,
-                             callbacks=[checkpoint_callback, early_stop_callback]
+                             callbacks=callbacks_list,
+                             accumulate_grad_batches=args.accumulate_grad_batches
                              )
         
         # set broadcast_buffers=True

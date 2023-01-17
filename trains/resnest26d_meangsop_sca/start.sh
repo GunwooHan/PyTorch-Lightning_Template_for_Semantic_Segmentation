@@ -5,8 +5,11 @@ python train.py --gpus=3 \
  --precision 16 \
  --buildingSegTransform True \
  --batch_size 16 \
- --epochs 64 \
- --learning_rate 0.0008 \
+ --epochs 12 \
+ --learning_rate 0.0016 \
  --optimizer adam \
- --kfold 2 \
+ --kfold 5 \
  --img_size 512 \
+ --gpus 2 \
+ --use_swa True \
+ --accumulate_grad_batches 2 \
