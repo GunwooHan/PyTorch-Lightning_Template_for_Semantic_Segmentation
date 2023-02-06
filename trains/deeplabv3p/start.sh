@@ -1,0 +1,1 @@
+python train.py --gpus=3 --train_data_dir ~/codes/datasets/buildingSegDataset/train --name deeplabv3p --model DeepLabV3+ --precision 16 --buildingSegTransform True --batch_size 24 --epochs 10

@@ -1,0 +1,1 @@
+python predict.py --model_file /home/aieson/codes/PyTorch-Lightning_Template_for_Semantic_Segmentation/trains/effunet/checkpoints/effb7unet_fold04_val/jac_idx=0.8784.ckpt --pred_img_dir /home/aieson/codes/datasets/buildingSegDataset/preds/pred_img/

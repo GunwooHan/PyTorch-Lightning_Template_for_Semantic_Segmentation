@@ -1,4 +1,8 @@
 import os
+import sys
+import inspect
+sys.path.append(os.path.realpath(os.path.join(os.path.dirname(inspect.getfile(inspect.currentframe())), '../../')))
+sys.path.append(os.path.realpath(os.path.join(os.path.dirname(inspect.getfile(inspect.currentframe())), './')))
 import glob
 import argparse
 
@@ -14,8 +18,10 @@ from sklearn.model_selection import KFold, StratifiedKFold, GroupKFold
 
 from datasets import SegmentationDataset
 from transforms import make_transform
-from models import SegmentationModel
+from models.unet_inferface import UnetModel
 from utils import train_test_split
+
+import config as cfg
 
 parser = argparse.ArgumentParser()
 
@@ -25,7 +31,7 @@ parser.add_argument('--test_data_dir', type=str, default='data/val')
 
 
 parser.add_argument('--precision', type=int, default=32)
-parser.add_argument('--num_workers', type=int, default=8)
+parser.add_argument('--num_workers', type=int, default=12)
 parser.add_argument('--project', type=str, default='sikseki_segmentation_lv1')
 parser.add_argument('--name', type=str, default='fcn_resnet50')
 parser.add_argument('--model', type=str, default='Unet')
@@ -35,12 +41,20 @@ parser.add_argument('--encoder', type=str, default='resnet50')
 
 parser.add_argument('--epochs', type=int, default=5)
 parser.add_argument('--kfold', type=int, default=5)
-parser.add_argument('--batch_size', type=int, default=2)
+parser.add_argument('--batch_size', type=int, default=12)
 parser.add_argument('--learning_rate', type=float, default=0.0001)
 parser.add_argument('--optimizer', type=str, default='adamp')
 parser.add_argument('--scheduler', type=str, default='reducelr')
 # gpus
 parser.add_argument('--gpus', type=int, default=1)
+# parser.add_argument('--loss', type=str, default='ce')
+
+# augmentation 관련 설정
+parser.add_argument('--crop_image_size', type=int, default=512)
+parser.add_argument('--ShiftScaleRotateMode', type=int, default=4)
+parser.add_argument('--ShiftScaleRotate', type=float, default=0.2)
+parser.add_argument('--HorizontalFlip', type=float, default=0.2)
+parser.add_argument('--VerticalFlip', type=float, default=0.2)
 # buildingSegTransform
 parser.add_argument('--buildingSegTransform', type=bool, default=True)
 args = parser.parse_args()
@@ -70,11 +84,11 @@ if __name__ == '__main__':
             mode="max",
             # save_weights_only=True
         )
-        early_stop_callback = EarlyStopping(monitor="val/loss", min_delta=0.00, patience=10, verbose=True,
+        early_stop_callback = EarlyStopping(monitor="val/loss", min_delta=0.00, patience=25, verbose=True,
                                             mode="min")
 
         train_transform, val_transform = make_transform(args)
-        model = SegmentationModel(args)
+        model = cfg.MODEL_INTERFACE(args)
 
         train_ds = SegmentationDataset(np.array(all_imgs)[train_index], np.array(all_masks)[train_index], train_transform)
         train_dataloader = torch.utils.data.DataLoader(train_ds, batch_size=args.batch_size,
@@ -104,3 +118,4 @@ if __name__ == '__main__':
         trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
         # trainer.test(dataloaders=test_dataloader)
         wandb.finish()
+        
